@@ -19,6 +19,14 @@
         <li>
             <a href="{% url 'chapter_list' book.id %}">{{ book.title }}</a>
             <div class="muted">{{ book.chapters.count }} bölüm</div>
+            {% if book.last_chapter %}
+            <div style="margin-top:8px;">
+                <a class="btn" style="padding:7px 16px; font-size:0.85rem;"
+                   href="{% url 'chapter_detail' book.last_chapter.id %}">
+                   ▶ Davam et — {{ book.last_chapter.title|default:"bölüm" }}
+                </a>
+            </div>
+            {% endif %}
         </li>
         {% endfor %}
     </ul>

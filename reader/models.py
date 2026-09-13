@@ -7,6 +7,15 @@ class Book(models.Model):
     author = models.CharField("Yazar", max_length=255, blank=True)
     created_at = models.DateTimeField("Eklenme tarihi", auto_now_add=True)
 
+    # --- Okuma ilerlemesi (nereden devam edileceği) ---
+    last_chapter = models.ForeignKey(
+        'Chapter', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='+', verbose_name="Kalınan bölüm",
+    )
+    last_scroll_percent = models.FloatField("Kalınan yer (%)", default=0)
+    last_read_at = models.DateTimeField(
+        "Son okuma zamanı", null=True, blank=True)
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Kitap"
@@ -18,11 +27,14 @@ class Book(models.Model):
 
 class Chapter(models.Model):
     """Kitabın bir bölümü (chapter) - bir Wattpad linkine bağlıdır."""
-    book = models.ForeignKey(Book, related_name='chapters', on_delete=models.CASCADE, verbose_name="Kitap")
-    url = models.URLField("Wattpad linki", unique=True, help_text="Wattpad bölüm linki")
+    book = models.ForeignKey(
+        Book, related_name='chapters', on_delete=models.CASCADE, verbose_name="Kitap")
+    url = models.URLField("Wattpad linki", unique=True,
+                          help_text="Wattpad bölüm linki")
     title = models.CharField("Bölüm başlığı", max_length=500, blank=True)
     order = models.PositiveIntegerField("Sıra", default=0)
-    content = models.TextField("Metin", blank=True, help_text="Çekilmiş bölüm metni")
+    content = models.TextField(
+        "Metin", blank=True, help_text="Çekilmiş bölüm metni")
     fetched_at = models.DateTimeField("Çekilme zamanı", null=True, blank=True)
     added_at = models.DateTimeField("Eklenme tarihi", auto_now_add=True)
 

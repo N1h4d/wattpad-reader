@@ -28,7 +28,7 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 # Render, tətbiqin xarici hostname-ini avtomatik olaraq RENDER_EXTERNAL_HOSTNAME
 # environment variable-ı kimi verir. Onu ALLOWED_HOSTS-a əlavə edirik.

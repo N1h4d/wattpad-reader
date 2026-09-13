@@ -7,7 +7,7 @@
     <h2 style="margin-top:0;">{{ chapter.title|default:"Adsız bölüm" }}</h2>
 
     {% if chapter.content %}
-    <div class="reading-text">{{ chapter.content }}</div>
+    <div class="reading-text" id="reading-text">{{ chapter.content }}</div>
     {% else %}
     <p class="muted">Bu bölüm çekilemedi.
         <a href="{% url 'refresh_chapter' chapter.id %}">Tekrar dene</a>
@@ -30,4 +30,57 @@
         {% endif %}
     </div>
 </div>
+
+{% if chapter.content %}
+<script>
+(function () {
+    var chapterId = {{ chapter.id }};
+    var resumePercent = {{ resume_percent|default:0 }};
+    var csrfToken = "{{ csrf_token }}";
+    var saveTimer = null;
+
+    function currentPercent() {
+        var scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        if (scrollable <= 0) return 100;
+        var p = (window.scrollY / scrollable) * 100;
+        return Math.max(0, Math.min(100, p));
+    }
+
+    function sendProgress(percent, useKeepalive) {
+        fetch("/chapter/" + chapterId + "/progress/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken
+            },
+            body: JSON.stringify({percent: percent}),
+            keepalive: !!useKeepalive
+        }).catch(function () {});
+    }
+
+    // Sayfa açılınca kaldığın yere otomatik kaydır
+    window.addEventListener("load", function () {
+        if (resumePercent > 1) {
+            var scrollable = document.documentElement.scrollHeight - window.innerHeight;
+            if (scrollable > 0) {
+                window.scrollTo(0, (resumePercent / 100) * scrollable);
+            }
+        }
+    });
+
+    // Kaydırma dururken (900ms) pozisyonu kaydet
+    window.addEventListener("scroll", function () {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(function () {
+            sendProgress(currentPercent(), false);
+        }, 900);
+    });
+
+    // Sayfadan ayrılırken son pozisyonu kesin kaydet
+    window.addEventListener("pagehide", function () {
+        sendProgress(currentPercent(), true);
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

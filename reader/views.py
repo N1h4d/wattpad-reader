@@ -1,7 +1,11 @@
+import json
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from .models import Book, Chapter
 from . import scraper
@@ -17,7 +21,8 @@ def home(request):
             return redirect("home")
 
         book = Book.objects.create(title=title)
-        messages.success(request, f'"{title}" eklendi. Şimdi bölüm linklerini ekleyebilirsin.')
+        messages.success(
+            request, f'"{title}" eklendi. Şimdi bölüm linklerini ekleyebilirsin.')
         return redirect("chapter_list", book_id=book.id)
 
     books = Book.objects.all()
@@ -33,7 +38,8 @@ def chapter_list(request, book_id):
         url = request.POST.get("chapter_url", "").strip()
 
         if not url or "wattpad.com" not in url:
-            messages.error(request, "Lütfen geçerli bir Wattpad bölüm linki gir.")
+            messages.error(
+                request, "Lütfen geçerli bir Wattpad bölüm linki gir.")
             return redirect("chapter_list", book_id=book.id)
 
         url = scraper.normalize_chapter_url(url)
@@ -84,11 +90,51 @@ def chapter_detail(request, chapter_id):
     prev_chapter = siblings[idx - 1] if idx > 0 else None
     next_chapter = siblings[idx + 1] if 0 <= idx < len(siblings) - 1 else None
 
+    # Bu kitapta kalınan bölüm hâlâ bu bölümse, kalınan yeri (% olarak)
+    # geri veriyoruz ki sayfa açılınca oraya kaydırılsın. Başka bir bölümse
+    # (kullanıcı yeni bir bölüme geçmiş demektir), 0'dan başlıyoruz ve
+    # "kalınan bölüm"ü bu bölüme güncelliyoruz.
+    book = chapter.book
+    if book.last_chapter_id == chapter.id:
+        resume_percent = book.last_scroll_percent
+    else:
+        resume_percent = 0
+        book.last_chapter = chapter
+        book.last_scroll_percent = 0
+        book.last_read_at = timezone.now()
+        book.save(update_fields=["last_chapter",
+                  "last_scroll_percent", "last_read_at"])
+
     return render(request, "reader/chapter_detail.html", {
         "chapter": chapter,
         "prev_chapter": prev_chapter,
         "next_chapter": next_chapter,
+        "resume_percent": resume_percent,
     })
+
+
+@login_required
+@require_POST
+def save_progress(request, chapter_id):
+    """Sayfa kaydırıldıkça AJAX ile çağrılır; kalınan yeri (%) kaydeder."""
+    chapter = get_object_or_404(Chapter, id=chapter_id)
+    book = chapter.book
+
+    # Kullanıcı bu kitapta hâlâ bu bölümdeyse pozisyonu güncelle.
+    if book.last_chapter_id != chapter.id:
+        return JsonResponse({"ok": False}, status=409)
+
+    try:
+        payload = json.loads(request.body or "{}")
+        percent = float(payload.get("percent", 0))
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "error": "invalid percent"}, status=400)
+
+    percent = max(0.0, min(100.0, percent))
+    book.last_scroll_percent = percent
+    book.last_read_at = timezone.now()
+    book.save(update_fields=["last_scroll_percent", "last_read_at"])
+    return JsonResponse({"ok": True})
 
 
 @login_required
