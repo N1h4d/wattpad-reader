@@ -6,8 +6,12 @@
 <div class="card" style="margin-top:16px;">
     <h2 style="margin-top:0;">{{ chapter.title|default:"Adsız bölüm" }}</h2>
 
-    {% if chapter.content %}
-    <div class="reading-text" id="reading-text">{{ chapter.content }}</div>
+    {% if paragraphs %}
+    <div class="reading-text" id="reading-text">
+        {% for paragraph in paragraphs %}
+        <p data-p-index="{{ forloop.counter0 }}" id="p-{{ forloop.counter0 }}">{{ paragraph }}</p>
+        {% endfor %}
+    </div>
     {% else %}
     <p class="muted">Bu bölüm çekilemedi.
         <a href="{% url 'refresh_chapter' chapter.id %}">Tekrar dene</a>
@@ -31,70 +35,139 @@
     </div>
 </div>
 
-{% if chapter.content %}
+{% if paragraphs %}
+<div class="mark-toolbar" id="mark-toolbar">
+    <button type="button" class="tb-btn tb-mark" id="mark-btn">🔖 <span>Buraya işaret koy</span></button>
+    <button type="button" class="tb-btn tb-goto" id="goto-btn">📍 <span>İşaretlediğin yere git</span></button>
+</div>
+<div class="mark-toast" id="mark-toast"></div>
+
 <script>
 (function () {
     var chapterId = {{ chapter.id }};
-    var resumePercent = {{ resume_percent|default:0 }};
+    // Bu bölümün kendi işareti - hangi paragrafta bırakıldığı bilgisi.
+    // NOT: Artık scroll yüzdesi (%) KULLANILMIYOR. İşaret, metnin kendi
+    // paragraf numarasına göre tutuluyor - bu yüzden ekran boyutu, tarayıcı,
+    // adres çubuğunun gizlenip görünmesi gibi hiçbir şeyden etkilenmez;
+    // "işaretin yeri" her zaman aynı paragraftır.
+    var markParagraph = {{ mark_paragraph|default_if_none:"null" }};
+    var hasMark = {{ has_mark|yesno:"true,false" }};
     var csrfToken = "{{ csrf_token }}";
-    var saveTimer = null;
 
-    function currentPercent() {
-        var scrollable = document.documentElement.scrollHeight - window.innerHeight;
-        if (scrollable <= 0) return 100;
-        var p = (window.scrollY / scrollable) * 100;
-        return Math.max(0, Math.min(100, p));
+    var toastTimer = null;
+    var markedEl = null;
+
+    var markBtn = document.getElementById("mark-btn");
+    var gotoBtn = document.getElementById("goto-btn");
+    var toast = document.getElementById("mark-toast");
+    var paragraphs = Array.prototype.slice.call(
+        document.querySelectorAll("#reading-text p[data-p-index]")
+    );
+
+    gotoBtn.style.display = "none";
+    function showGotoBtn() { gotoBtn.style.display = "flex"; }
+
+    // Şu an ekranın üst kısmında, okunmakta olan paragrafı bulur. Sayfanın
+    // üstünden belirli bir mesafe (referans çizgisi) geçmiş olan SON
+    // paragraf "şu an okunan paragraf" kabul edilir.
+    function currentParagraphIndex() {
+        if (!paragraphs.length) return 0;
+        var refLine = 120; // ekranın üstünden bu kadar aşağıda "okuma çizgisi"
+        var best = 0;
+        for (var i = 0; i < paragraphs.length; i++) {
+            var top = paragraphs[i].getBoundingClientRect().top;
+            if (top - refLine <= 0) {
+                best = i;
+            } else {
+                break;
+            }
+        }
+        return best;
     }
 
-    function sendProgress(percent, useKeepalive) {
+    function paragraphByIndex(index) {
+        return document.getElementById("p-" + index);
+    }
+
+    function highlightParagraph(index, pulse) {
+        if (markedEl) markedEl.classList.remove("marked-paragraph", "pulse");
+        var el = paragraphByIndex(index);
+        if (!el) return;
+        el.classList.add("marked-paragraph");
+        if (pulse) {
+            void el.offsetWidth; // reflow, animasyonu tetiklemek için
+            el.classList.add("pulse");
+        }
+        markedEl = el;
+    }
+
+    function sendMark(paragraphIndex) {
         return fetch("/chapter/" + chapterId + "/progress/", {
             method: "POST",
+            credentials: "same-origin",
             headers: {
                 "Content-Type": "application/json",
                 "X-CSRFToken": csrfToken
             },
-            body: JSON.stringify({percent: percent}),
-            keepalive: !!useKeepalive
-        }).catch(function () {});
+            body: JSON.stringify({paragraph: paragraphIndex})
+        }).then(function (res) {
+            if (!res.ok) {
+                return res.text().then(function (bodyText) {
+                    console.error("İşaret kaydı başarısız:", res.status, bodyText);
+                    throw new Error("HTTP " + res.status);
+                });
+            }
+            return res.json();
+        }).then(function (data) {
+            if (!data || data.ok !== true) {
+                console.error("Sunucu 'ok:true' döndürmedi:", data);
+                throw new Error("beklenmeyen cevap");
+            }
+            return data;
+        });
     }
 
-    // Sayfa açılınca kaldığın yere otomatik kaydır (küçük bir gecikme ile,
-    // yazı tipi/yerleşim tam otursun diye)
-    window.addEventListener("load", function () {
-        setTimeout(function () {
-            if (resumePercent > 1) {
-                var scrollable = document.documentElement.scrollHeight - window.innerHeight;
-                if (scrollable > 0) {
-                    window.scrollTo(0, (resumePercent / 100) * scrollable);
-                }
-            }
-        }, 100);
-    });
+    function showToast(text) {
+        toast.textContent = text;
+        clearTimeout(toastTimer);
+        requestAnimationFrame(function () { toast.classList.add("show"); });
+        toastTimer = setTimeout(function () { toast.classList.remove("show"); }, 1800);
+    }
 
-    // Kaydırma dururken (900ms) pozisyonu kaydet
-    window.addEventListener("scroll", function () {
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(function () {
-            sendProgress(currentPercent(), false);
-        }, 900);
-    });
+    // Sayfa açılınca: bu bölümde daha önce bırakılmış bir işaret varsa
+    // (hasMark true) o paragrafı vurgula, oraya kaydır ve "işaretlediğin
+    // yere git" butonunu göster. Bu artık tek bir DOM elemanına gitmek
+    // olduğu için (yüzde/piksel hesabı değil) her zaman doğru çalışır.
+    if (hasMark && markParagraph !== null && paragraphByIndex(markParagraph)) {
+        highlightParagraph(markParagraph, false);
+        showGotoBtn();
+        paragraphByIndex(markParagraph).scrollIntoView({block: "center"});
+    }
 
-    // Sayfadan ayrılırken son pozisyonu kesin kaydet (sekme kapatma, geri gitme vb.)
-    window.addEventListener("pagehide", function () {
-        sendProgress(currentPercent(), true);
-    });
-
-    // Bölüm içindeki linklere tıklayınca (Önceki/Sonraki/Kataloğa Dön/Kitap adı)
-    // ÖNCE pozisyonu kaydet, SONRA sayfayı değiştir - böylece kayıt kaçırılmaz.
-    document.querySelectorAll(".nav-link").forEach(function (link) {
-        link.addEventListener("click", function (e) {
-            e.preventDefault();
-            var destination = link.getAttribute("href");
-            clearTimeout(saveTimer);
-            sendProgress(currentPercent(), true).finally(function () {
-                window.location.href = destination;
-            });
+    // "Buraya işaret koy" - kullanıcı okurken istediği anda basıp, o an
+    // ekranda okuduğu PARAGRAFI bu bölüme özel olarak kaydeder.
+    markBtn.addEventListener("click", function () {
+        var index = currentParagraphIndex();
+        markBtn.disabled = true;
+        sendMark(index).then(function () {
+            markParagraph = index;
+            hasMark = true;
+            highlightParagraph(index, true);
+            showGotoBtn();
+            showToast("İşaret kondu ✓");
+        }).catch(function (err) {
+            showToast("İşaret konulamadı: " + err.message);
+        }).finally(function () {
+            markBtn.disabled = false;
         });
+    });
+
+    gotoBtn.addEventListener("click", function () {
+        if (markParagraph === null) return;
+        var el = paragraphByIndex(markParagraph);
+        if (!el) return;
+        el.scrollIntoView({behavior: "smooth", block: "center"});
+        highlightParagraph(markParagraph, true);
     });
 })();
 </script>

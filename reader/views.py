@@ -90,51 +90,57 @@ def chapter_detail(request, chapter_id):
     prev_chapter = siblings[idx - 1] if idx > 0 else None
     next_chapter = siblings[idx + 1] if 0 <= idx < len(siblings) - 1 else None
 
-    # Bu kitapta kalınan bölüm hâlâ bu bölümse, kalınan yeri (% olarak)
-    # geri veriyoruz ki sayfa açılınca oraya kaydırılsın. Başka bir bölümse
-    # (kullanıcı yeni bir bölüme geçmiş demektir), 0'dan başlıyoruz ve
-    # "kalınan bölüm"ü bu bölüme güncelliyoruz.
+    # "Hangi bölümde kaldığın" bilgisi otomatik tutulur: bir bölümü açtığın
+    # an, kitabın "kaldığın bölüm"ü o olur (Kitap listesindeki "Devam Et"
+    # butonu buna bakar). Bu, aşağıdaki elle-işaretlemeden tamamen ayrıdır.
     book = chapter.book
-    if book.last_chapter_id == chapter.id:
-        resume_percent = book.last_scroll_percent
-    else:
-        resume_percent = 0
+    if book.last_chapter_id != chapter.id:
         book.last_chapter = chapter
-        book.last_scroll_percent = 0
         book.last_read_at = timezone.now()
-        book.save(update_fields=["last_chapter",
-                  "last_scroll_percent", "last_read_at"])
+        book.save(update_fields=["last_chapter", "last_read_at"])
+
+    # Bölüm metni PARAGRAF listesine bölünüyor; işaret sistemi artık scroll
+    # yüzdesi yerine doğrudan bir paragrafın sırasını (index) tutuyor. Bu
+    # şekilde ekran boyutu, tarayıcı, adres çubuğu gibi hiçbir şeyden
+    # etkilenmiyor - "işaretin yeri" her zaman aynı paragraftır.
+    paragraphs = chapter.get_paragraphs()
 
     return render(request, "reader/chapter_detail.html", {
         "chapter": chapter,
+        "paragraphs": paragraphs,
         "prev_chapter": prev_chapter,
         "next_chapter": next_chapter,
-        "resume_percent": resume_percent,
+        "mark_paragraph": chapter.mark_paragraph,
+        # mark_paragraph null olabileceğinden (hiç işaret konmamış olabilir),
+        # "işaret var mı" sorusunu marked_at alanının dolu olup olmadığına
+        # bakarak kesin şekilde cevaplıyoruz.
+        "has_mark": chapter.marked_at is not None,
     })
 
 
 @login_required
 @require_POST
 def save_progress(request, chapter_id):
-    """Sayfa kaydırıldıkça AJAX ile çağrılır; kalınan yeri (%) kaydeder."""
+    """Kullanıcı 'Buraya işaret koy' butonuna basınca çağrılır; o an
+    okuduğu PARAGRAFIN sırasını kaydeder. Hangi bölümde olunduğundan
+    bağımsız olarak her bölümün kendi işareti ayrı ayrı saklanır."""
     chapter = get_object_or_404(Chapter, id=chapter_id)
-    book = chapter.book
-
-    # Kullanıcı bu kitapta hâlâ bu bölümdeyse pozisyonu güncelle.
-    if book.last_chapter_id != chapter.id:
-        return JsonResponse({"ok": False}, status=409)
 
     try:
         payload = json.loads(request.body or "{}")
-        percent = float(payload.get("percent", 0))
+        paragraph_index = int(payload.get("paragraph"))
     except (ValueError, TypeError):
-        return JsonResponse({"ok": False, "error": "invalid percent"}, status=400)
+        return JsonResponse({"ok": False, "error": "invalid paragraph"}, status=400)
 
-    percent = max(0.0, min(100.0, percent))
-    book.last_scroll_percent = percent
-    book.last_read_at = timezone.now()
-    book.save(update_fields=["last_scroll_percent", "last_read_at"])
-    return JsonResponse({"ok": True})
+    paragraph_count = len(chapter.get_paragraphs())
+    if paragraph_count == 0:
+        return JsonResponse({"ok": False, "error": "no content"}, status=400)
+
+    paragraph_index = max(0, min(paragraph_count - 1, paragraph_index))
+    chapter.mark_paragraph = paragraph_index
+    chapter.marked_at = timezone.now()
+    chapter.save(update_fields=["mark_paragraph", "marked_at"])
+    return JsonResponse({"ok": True, "paragraph": paragraph_index})
 
 
 @login_required
@@ -146,6 +152,11 @@ def refresh_chapter(request, chapter_id):
         chapter.content = data["content"]
         chapter.title = data["title"] or chapter.title
         chapter.fetched_at = timezone.now()
+        # Metin yeniden çekildiğinde paragraf sıraları değişmiş olabilir;
+        # eski işaret artık farklı/yanlış bir paragrafı gösterebileceğinden
+        # sıfırlıyoruz.
+        chapter.mark_paragraph = None
+        chapter.marked_at = None
         chapter.save()
         messages.success(request, "Bölüm güncellendi.")
     except scraper.ScrapeError as exc:

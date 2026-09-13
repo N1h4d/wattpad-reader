@@ -12,7 +12,6 @@ class Book(models.Model):
         'Chapter', null=True, blank=True, on_delete=models.SET_NULL,
         related_name='+', verbose_name="Kaldığın bölüm",
     )
-    last_scroll_percent = models.FloatField("Kaldığın yer (%)", default=0)
     last_read_at = models.DateTimeField(
         "Son okuma zamanı", null=True, blank=True)
 
@@ -38,6 +37,19 @@ class Chapter(models.Model):
     fetched_at = models.DateTimeField("Çekilme zamanı", null=True, blank=True)
     added_at = models.DateTimeField("Eklenme tarihi", auto_now_add=True)
 
+    # --- Bu bölümün içinde kullanıcının elle bıraktığı işaret ---
+    # Her bölümün kendi işareti vardır; hangi bölümde olduğundan bağımsız
+    # olarak her bölüme girdiğinde o bölümün işaretine ulaşabilirsin.
+    # NOT: İşaret, sayfa kaydırma yüzdesi (scroll %) yerine metnin kendi
+    # PARAGRAF numarasına göre tutulur. Böylece ekran boyutu, tarayıcı,
+    # adres çubuğu gibi şeylerden tamamen bağımsız, her zaman doğru
+    # paragrafa gider.
+    mark_paragraph = models.PositiveIntegerField(
+        "İşaretlediğin paragraf", null=True, blank=True,
+        help_text="Bu bölüm içinde elle bırakılan işaretin paragraf sırası (0'dan başlar)")
+    marked_at = models.DateTimeField(
+        "İşaretleme zamanı", null=True, blank=True)
+
     class Meta:
         ordering = ['order', 'id']
         verbose_name = "Bölüm"
@@ -49,3 +61,10 @@ class Chapter(models.Model):
     @property
     def is_fetched(self):
         return bool(self.content)
+
+    def get_paragraphs(self):
+        """Bölüm metnini paragraflara böler. İşaret sistemi bu paragraf
+        sırasına göre çalışır (scroll yüzdesi yerine)."""
+        if not self.content:
+            return []
+        return [p for p in self.content.split("\n\n") if p.strip()]
