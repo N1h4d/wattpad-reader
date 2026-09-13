@@ -1,0 +1,23 @@
+{% extends "reader/base.html" %}
+{% block title %}Giriş Yap{% endblock %}
+{% block content %}
+<div class="card" style="max-width:380px; margin: 60px auto;">
+    <h2 style="margin-top:0; color:var(--accent);">Giriş Yap</h2>
+    {% if form.errors %}
+    <ul class="messages"><li class="error">Kullanıcı adı ya da şifre hatalı.</li></ul>
+    {% endif %}
+    <form method="post">
+        {% csrf_token %}
+        <div style="margin-bottom:14px;">
+            <label class="muted">Kullanıcı adı</label>
+            <input type="text" name="username" required autofocus>
+        </div>
+        <div style="margin-bottom:18px;">
+            <label class="muted">Şifre</label>
+            <input type="password" name="password" required>
+        </div>
+        <input type="hidden" name="next" value="{{ next }}">
+        <button type="submit" style="width:100%;">Giriş Yap</button>
+    </form>
+</div>
+{% endblock %}

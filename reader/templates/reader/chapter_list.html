@@ -1,0 +1,32 @@
+{% extends "reader/base.html" %}
+{% block title %}{{ book.title }}{% endblock %}
+{% block content %}
+<a href="{% url 'home' %}" class="muted">&larr; Kitaplarım</a>
+
+<div class="card" style="margin-top:16px;">
+    <h2 style="margin-top:0;">{{ book.title }}</h2>
+
+    <h4 style="margin-bottom:6px;">Yeni bölüm ekle</h4>
+    <p class="muted" style="margin-top:0;">Wattpad bölüm linkini yapıştır, bölüm otomatik olarak buraya eklensin.</p>
+    <form method="post" class="inline-form">
+        {% csrf_token %}
+        <input type="url" name="chapter_url" placeholder="https://www.wattpad.com/..." required>
+        <button type="submit">Bölüm Ekle</button>
+    </form>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Bölümler</h3>
+    <ul class="book-list">
+        {% for chapter in book.chapters.all %}
+        <li>
+            <a href="{% url 'chapter_detail' chapter.id %}">
+                {{ forloop.counter }}. {{ chapter.title|default:"Adsız bölüm" }}
+            </a>
+        </li>
+        {% empty %}
+        <li class="muted">Henüz bölüm eklenmedi.</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

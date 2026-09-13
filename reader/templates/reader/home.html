@@ -1,0 +1,29 @@
+{% extends "reader/base.html" %}
+{% block title %}Kitaplarım{% endblock %}
+{% block content %}
+<div class="card">
+    <h2 style="margin-top:0;">Yeni kitap ekle</h2>
+    <p class="muted">Önce kitabın adını yaz. Bölümleri daha sonra kitabın içinde ekleyeceksin.</p>
+    <form method="post" class="inline-form">
+        {% csrf_token %}
+        <input type="text" name="book_title" placeholder="Kitap adı..." required>
+        <button type="submit">Kitap Ekle</button>
+    </form>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Kitaplarım</h3>
+    {% if books %}
+    <ul class="book-list">
+        {% for book in books %}
+        <li>
+            <a href="{% url 'chapter_list' book.id %}">{{ book.title }}</a>
+            <div class="muted">{{ book.chapters.count }} bölüm</div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">Henüz kitap eklemedin.</p>
+    {% endif %}
+</div>
+{% endblock %}

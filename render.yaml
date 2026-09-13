@@ -1,0 +1,22 @@
+databases:
+  - name: wattpad-reader-db
+    plan: free
+
+services:
+  - type: web
+    name: wattpad-reader
+    runtime: python
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn wattpad_reader.wsgi:application"
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: PYTHON_VERSION
+        value: "3.12.4"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wattpad-reader-db
+          property: connectionString

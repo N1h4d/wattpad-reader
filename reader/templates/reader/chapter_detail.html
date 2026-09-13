@@ -1,0 +1,33 @@
+{% extends "reader/base.html" %}
+{% block title %}{{ chapter.title }}{% endblock %}
+{% block content %}
+<a href="{% url 'chapter_list' chapter.book.id %}" class="muted">&larr; {{ chapter.book.title }}</a>
+
+<div class="card" style="margin-top:16px;">
+    <h2 style="margin-top:0;">{{ chapter.title|default:"Adsız bölüm" }}</h2>
+
+    {% if chapter.content %}
+    <div class="reading-text">{{ chapter.content }}</div>
+    {% else %}
+    <p class="muted">Bu bölüm çekilemedi.
+        <a href="{% url 'refresh_chapter' chapter.id %}">Tekrar dene</a>
+    </p>
+    {% endif %}
+
+    <div class="chapter-nav">
+        {% if prev_chapter %}
+        <a class="btn btn-secondary" href="{% url 'chapter_detail' prev_chapter.id %}">&larr; Önceki Bölüm</a>
+        {% else %}
+        <span></span>
+        {% endif %}
+
+        <a class="btn btn-secondary" href="{% url 'chapter_list' chapter.book.id %}">📖 Kitap Kataloğuna Dön</a>
+
+        {% if next_chapter %}
+        <a class="btn" href="{% url 'chapter_detail' next_chapter.id %}">Sonraki Bölüm &rarr;</a>
+        {% else %}
+        <span></span>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
