@@ -12,7 +12,8 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='book',
             name='last_scroll_percent',
-            field=models.FloatField(default=0, verbose_name='Kalınan yer (%)'),
+            field=models.FloatField(
+                default=0, verbose_name='Kaldığın yer (%)'),
         ),
         migrations.AddField(
             model_name='book',
@@ -27,7 +28,7 @@ class Migration(migrations.Migration):
                 blank=True, null=True,
                 on_delete=django.db.models.deletion.SET_NULL,
                 related_name='+', to='reader.chapter',
-                verbose_name='Kalınan bölüm',
+                verbose_name='Kaldığın bölüm',
             ),
         ),
     ]

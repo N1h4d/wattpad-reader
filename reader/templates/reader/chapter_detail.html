@@ -1,7 +1,7 @@
 {% extends "reader/base.html" %}
 {% block title %}{{ chapter.title }}{% endblock %}
 {% block content %}
-<a href="{% url 'chapter_list' chapter.book.id %}" class="muted">&larr; {{ chapter.book.title }}</a>
+<a href="{% url 'chapter_list' chapter.book.id %}" class="muted nav-link">&larr; {{ chapter.book.title }}</a>
 
 <div class="card" style="margin-top:16px;">
     <h2 style="margin-top:0;">{{ chapter.title|default:"Adsız bölüm" }}</h2>
@@ -16,15 +16,15 @@
 
     <div class="chapter-nav">
         {% if prev_chapter %}
-        <a class="btn btn-secondary" href="{% url 'chapter_detail' prev_chapter.id %}">&larr; Önceki Bölüm</a>
+        <a class="btn btn-secondary nav-link" href="{% url 'chapter_detail' prev_chapter.id %}">&larr; Önceki Bölüm</a>
         {% else %}
         <span></span>
         {% endif %}
 
-        <a class="btn btn-secondary" href="{% url 'chapter_list' chapter.book.id %}">📖 Kitap Kataloğuna Dön</a>
+        <a class="btn btn-secondary nav-link" href="{% url 'chapter_list' chapter.book.id %}">📖 Kitap Kataloğuna Dön</a>
 
         {% if next_chapter %}
-        <a class="btn" href="{% url 'chapter_detail' next_chapter.id %}">Sonraki Bölüm &rarr;</a>
+        <a class="btn nav-link" href="{% url 'chapter_detail' next_chapter.id %}">Sonraki Bölüm &rarr;</a>
         {% else %}
         <span></span>
         {% endif %}
@@ -47,7 +47,7 @@
     }
 
     function sendProgress(percent, useKeepalive) {
-        fetch("/chapter/" + chapterId + "/progress/", {
+        return fetch("/chapter/" + chapterId + "/progress/", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -58,14 +58,17 @@
         }).catch(function () {});
     }
 
-    // Sayfa açılınca kaldığın yere otomatik kaydır
+    // Sayfa açılınca kaldığın yere otomatik kaydır (küçük bir gecikme ile,
+    // yazı tipi/yerleşim tam otursun diye)
     window.addEventListener("load", function () {
-        if (resumePercent > 1) {
-            var scrollable = document.documentElement.scrollHeight - window.innerHeight;
-            if (scrollable > 0) {
-                window.scrollTo(0, (resumePercent / 100) * scrollable);
+        setTimeout(function () {
+            if (resumePercent > 1) {
+                var scrollable = document.documentElement.scrollHeight - window.innerHeight;
+                if (scrollable > 0) {
+                    window.scrollTo(0, (resumePercent / 100) * scrollable);
+                }
             }
-        }
+        }, 100);
     });
 
     // Kaydırma dururken (900ms) pozisyonu kaydet
@@ -76,9 +79,22 @@
         }, 900);
     });
 
-    // Sayfadan ayrılırken son pozisyonu kesin kaydet
+    // Sayfadan ayrılırken son pozisyonu kesin kaydet (sekme kapatma, geri gitme vb.)
     window.addEventListener("pagehide", function () {
         sendProgress(currentPercent(), true);
+    });
+
+    // Bölüm içindeki linklere tıklayınca (Önceki/Sonraki/Kataloğa Dön/Kitap adı)
+    // ÖNCE pozisyonu kaydet, SONRA sayfayı değiştir - böylece kayıt kaçırılmaz.
+    document.querySelectorAll(".nav-link").forEach(function (link) {
+        link.addEventListener("click", function (e) {
+            e.preventDefault();
+            var destination = link.getAttribute("href");
+            clearTimeout(saveTimer);
+            sendProgress(currentPercent(), true).finally(function () {
+                window.location.href = destination;
+            });
+        });
     });
 })();
 </script>

@@ -10,9 +10,9 @@ class Book(models.Model):
     # --- Okuma ilerlemesi (nereden devam edileceği) ---
     last_chapter = models.ForeignKey(
         'Chapter', null=True, blank=True, on_delete=models.SET_NULL,
-        related_name='+', verbose_name="Kalınan bölüm",
+        related_name='+', verbose_name="Kaldığın bölüm",
     )
-    last_scroll_percent = models.FloatField("Kalınan yer (%)", default=0)
+    last_scroll_percent = models.FloatField("Kaldığın yer (%)", default=0)
     last_read_at = models.DateTimeField(
         "Son okuma zamanı", null=True, blank=True)
 

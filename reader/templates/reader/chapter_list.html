@@ -6,6 +6,13 @@
 <div class="card" style="margin-top:16px;">
     <h2 style="margin-top:0;">{{ book.title }}</h2>
 
+    {% if book.last_chapter %}
+    <a class="btn" style="margin-bottom:16px; display:inline-block;"
+       href="{% url 'chapter_detail' book.last_chapter.id %}">
+       ▶ Devam Et — {{ book.last_chapter.title|default:"bölüm" }}
+    </a>
+    {% endif %}
+
     <h4 style="margin-bottom:6px;">Yeni bölüm ekle</h4>
     <p class="muted" style="margin-top:0;">Wattpad bölüm linkini yapıştır, bölüm otomatik olarak buraya eklensin.</p>
     <form method="post" class="inline-form">
@@ -23,6 +30,9 @@
             <a href="{% url 'chapter_detail' chapter.id %}">
                 {{ forloop.counter }}. {{ chapter.title|default:"Adsız bölüm" }}
             </a>
+            {% if book.last_chapter_id == chapter.id %}
+            <span class="muted">(kaldığın yer)</span>
+            {% endif %}
         </li>
         {% empty %}
         <li class="muted">Henüz bölüm eklenmedi.</li>
